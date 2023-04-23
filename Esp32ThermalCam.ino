@@ -7,10 +7,13 @@
 #include <ESPmDNS.h>
 #include "html.h"
 
+//TaskHandle_t TaskA;
+
 // Bolometer - Replace with your own pinout
 #define I2C_SCL 13
 #define I2C_SDA 12
-#define I2C_PUP  2 // this is where to connect the 2x 4k7 pull up resistors
+//#define I2C_PUP  2 // this is for TTL to connect the 2x 4k7 pull up resistors
+
 
 // Camera - Currently setup according to AI-Thinker board, aka ESP32-CAM
 // Replace with your own setup if needed.
@@ -102,40 +105,43 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
   }
 }
 
-void connectWifi(const char *ssidname, const char *pass)
-{
-  log("Connecting to " + String(ssidname));
-  WiFi.begin(ssidname, pass);
-  delay(5000);
-}
-
 void setupWifiAp(const char *ssidname, const char *pass)
 {
   WiFi.mode(WIFI_AP);
   WiFi.setTxPower(WIFI_POWER_MINUS_1dBm);
   WiFi.softAP(ssidname, pass);
+  IPAddress IP = WiFi.softAPIP();
   delay(5000);
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
 }
-
+  
 void setup()
 {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   Serial.println();
 
-  log("Setting up bolometer");
-  pinMode(I2C_PUP, OUTPUT);
-  digitalWrite(I2C_PUP, HIGH);
-  Wire.begin(I2C_SDA, I2C_SCL);
-  
-  mlx.begin(MLX90640_I2CADDR_DEFAULT, &Wire);
-  mlx.setMode(MLX90640_CHESS);
-  mlx.setResolution(MLX90640_ADC_16BIT);
-  mlx90640_resolution_t res = mlx.getResolution();
-  mlx.setRefreshRate(MLX90640_16_HZ);
-  mlx90640_refreshrate_t rate = mlx.getRefreshRate();
-  Wire.setClock(1000000); // max 1 MHz
-  log("Bolometer setup");
+  if (digitalRead(I2C_SDA) == HIGH)
+  {
+    log("Setting up bolometer");
+
+    // don't use below if connecting to non-TTL manner (i.e. mlx90640 module)
+    //pinMode(I2C_PUP, OUTPUT);
+    //digitalWrite(I2C_PUP, HIGH);
+    Wire.begin(I2C_SDA, I2C_SCL);
+
+    mlx.begin(MLX90640_I2CADDR_DEFAULT, &Wire);
+    mlx.setMode(MLX90640_CHESS);
+    mlx.setResolution(MLX90640_ADC_16BIT);
+    mlx90640_resolution_t res = mlx.getResolution();
+    mlx.setRefreshRate(MLX90640_16_HZ); // FPS = Hz/2
+    mlx90640_refreshrate_t rate = mlx.getRefreshRate();
+    Wire.setClock(1000000); // max 1 MHz
+    log("Bolometer setup");
+
+    //xTaskCreatePinnedToCore(take_snapshot, "picture", 100000, NULL, 0, &takePic, 1);
+  }
 
   log("Setting up camera");
   camera_config_t config;
@@ -157,31 +163,29 @@ void setup()
   config.pin_sscb_scl = SIOC_GPIO_NUM;
   config.pin_pwdn = PWDN_GPIO_NUM;
   config.pin_reset = RESET_GPIO_NUM;
-  config.xclk_freq_hz = 10000000;
+  config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
-  config.frame_size = FRAMESIZE_QVGA;
-  config.jpeg_quality = 10;
+  config.frame_size = FRAMESIZE_SVGA; // 800x600 @ 30 fps
+  config.grab_mode = CAMERA_GRAB_LATEST;
+  config.fb_location = CAMERA_FB_IN_PSRAM;
+  config.jpeg_quality = 12;
   config.fb_count = 2;
   esp_err_t err = esp_camera_init(&config);
   sensor_t *s = esp_camera_sensor_get();
   log("Camera setup");
 
   log("Setting up WiFi");
-  WiFi.mode(WIFI_STA);
-  WiFi.setTxPower(WIFI_POWER_MINUS_1dBm);
-  if (WiFi.status() != WL_CONNECTED)
-  {
-      connectWifi(ssid, password);
-      if (WiFi.status() != WL_CONNECTED)
-      {
-        setupWifiAp(apssid, password);
-      }
-  }
+
+  setupWifiAp(ssid, password);
+
   log("WiFi setup");
 
-  log("Setting up MDNS as thermal");
-  MDNS.begin("thermal");
-  log("MDNS setup");
+  if (digitalRead(I2C_SDA) == HIGH)
+  {
+    log("Setting up MDNS as thermal");
+    MDNS.begin("thermal");
+    log("MDNS setup");
+  }
 
   log("Setting web server");
   ws.onEvent(onEvent);
@@ -199,7 +203,7 @@ void setup()
 }
 
 
-void take_snapshot()
+void take_snapshot( void* parameter )
 {
   camera_fb_t *fb = NULL;
   fb = esp_camera_fb_get();
@@ -208,7 +212,7 @@ void take_snapshot()
     log("Camera capture failed. Restarting");
     ESP.restart();
   }
-  log("Moving image to frame buffer " + String(fb->len) + " (max 30000)");
+  //log("Moving image to frame buffer " + String(fb->len) + " (max 30000)");
   memcpy(&frame[thermSize], fb->buf, fb->len);
   imageSize = fb->len;
   esp_camera_fb_return(fb);
@@ -230,14 +234,16 @@ void loop() {
     digitalWrite(SMALL_LED,               ws.count()?LOW:HIGH);
     digitalWrite(FLASH_LED, digitalRead(LED_CONTROL)?LOW:HIGH);
     memset(frame, 0, frameSize);
-    take_thermal();
-    take_snapshot();
+    take_snapshot(NULL);
+    if (digitalRead(I2C_SDA) == HIGH)
+      take_thermal();
     ws.binaryAll(frame, thermSize + imageSize);
     messageTimestamp = now;
-    messageCounter++;
-    if (messageCounter > 20) {
+    //messageCounter++;
+    /*if (messageCounter > 20) {
       sendStatus();
       messageCounter = 0;
-    }
+    }*/
   }
 }
+
