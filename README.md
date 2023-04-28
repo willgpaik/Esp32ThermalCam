@@ -1,5 +1,21 @@
 # Esp32ThermalCam
 
+## Changed to run on AP mode (as a server)
+
+### Required libraries (may need other libs):
+- ESPAsyncWebSrv
+- Adafruit_MLX90640
+- AsyncTCP
+
+To install ESP32 board on Arduino IDE, add https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json to "Additional Board Manager URLs" on preference. 
+Then, install "esp32" package from board manager
+(Or, check [Install guide](https://randomnerdtutorials.com/installing-the-esp32-board-in-arduino-ide-windows-instructions/))
+
+## Changes from original version:
+- Run without router (AP mode)
+- Using WaveShare mlx90640 module [Amazon Link](https://www.amazon.com/MLX90640-Thermal-Camera-Interface-Raspberry/dp/B08QCT423T) (can be replaced with similar version)
+- Check connection schematics ![Schematic](esp32-cam_mlx90640.pdf)
+
 ## What is it
 
 An ESP32-CAM and Mabee MLX90640 based thermal camera implementation.
