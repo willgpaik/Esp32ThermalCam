@@ -14,7 +14,8 @@ Then, install "esp32" package from board manager
 ## Changes from original version:
 - Run without router (AP mode)
 - Using WaveShare mlx90640 module [Amazon Link](https://www.amazon.com/MLX90640-Thermal-Camera-Interface-Raspberry/dp/B08QCT423T) (can be replaced with similar version)
-- Check connection schematics ![Schematic](esp32-cam_mlx90640.pdf)
+- Check connection schematic for ESP32-CAM and MLX90640 module ![Thermal module](esp32-cam_mlx90640.pdf)
+- In case connecting ESP32-CAM to Arduino to program it instead of motherboard, check connection ![Arduino connection](esp32-cam.pdf)
 
 ## What is it
 
